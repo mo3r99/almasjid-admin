@@ -1,0 +1,209 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+  features = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Class {
+  id           String   @id @default(cuid())
+  code         String   @unique @db.VarChar(50)
+  displayName  String
+  gender       Gender
+  academicYear DateTime
+  isActive     Boolean  @default(true)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  students           Student[]
+  timetableEntries   TimetableEntry[]
+  attendanceSessions AttendanceSession[]
+
+  teachers Teacher[]
+}
+
+model Student {
+  id          String    @id @default(cuid())
+  firstName   String
+  surname     String
+  gender      Gender
+  dateOfBirth DateTime?
+  dateStarted DateTime?
+
+  // Address
+  addressLine1 String?
+  addressLine2 String?
+  city         String? @db.VarChar(100)
+  postcode     String? @db.VarChar(9)
+
+  // Contact Information
+  phoneNumber   String? @db.VarChar(17)
+  studentEmail  String? @db.VarChar(60)
+  almasjidLogin String? @unique @db.VarChar(60)
+
+  // Parent/Guardian Information
+  parentGuardianName String?
+  parentContactNo    String? @db.VarChar(16)
+  parentEmail        String? @db.VarChar(60)
+  parentAltContact   String? @db.VarChar(20)
+
+  // Additional
+  comments String?
+  isActive Boolean @default(true)
+
+  // Timestamps
+  dateAdded   DateTime  @default(now())
+  dateUpdated DateTime? @updatedAt
+
+  // Relations
+  classId           String
+  class             Class              @relation(fields: [classId], references: [id])
+  attendanceRecords AttendanceRecord[]
+}
+
+model Teacher {
+  id            String  @id @default(cuid())
+  name          String
+  email         String? @db.VarChar(60)
+  almasjidLogin String? @unique
+  phoneNumber   String? @db.VarChar(17)
+  gender        Gender
+  isAdmin       Boolean @default(false)
+  isActive      Boolean @default(true)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  attendanceSessions AttendanceSession[]
+  attendanceRecords  AttendanceRecord[]
+  TimetableEntry     TimetableEntry[]
+
+  classes Class[]
+}
+
+// ============= TIMETABLE SYSTEM =============
+
+model TimeSlot {
+  id              String   @id @default(cuid())
+  name            String // "Period 1", "Morning Session"
+  startTime       DateTime @db.Time
+  endTime         DateTime @db.Time
+  durationMinutes Int
+  isActive        Boolean  @default(true)
+
+  // Relations
+  timetableEntries   TimetableEntry[]
+  attendanceSessions AttendanceSession[]
+}
+
+model Day {
+  id       String  @id @default(cuid())
+  dayNum   Int // 1-7
+  isActive Boolean @default(true)
+
+  // Relations
+  timetableEntries TimetableEntry[]
+}
+
+model TimetableEntry {
+  id             String    @id @default(cuid())
+  subject        String?
+  effectiveFrom  DateTime
+  effectiveUntil DateTime?
+  isActive       Boolean   @default(true)
+
+  // Relations
+  classId    String
+  class      Class    @relation(fields: [classId], references: [id])
+  teacherId  String
+  teacher    Teacher  @relation(fields: [teacherId], references: [id])
+  dayId      String
+  day        Day      @relation(fields: [dayId], references: [id])
+  timeSlotId String
+  timeSlot   TimeSlot @relation(fields: [timeSlotId], references: [id])
+
+  attendanceSessions AttendanceSession[]
+
+  @@unique([classId, dayId, timeSlotId, effectiveFrom])
+}
+
+// ============= ATTENDANCE SYSTEM =============
+
+model AttendanceSession {
+  id              String                  @id @default(cuid())
+  date            DateTime                @db.Date
+  status          AttendanceSessionStatus @default(SCHEDULED)
+  actualStartTime DateTime?
+  actualEndTime   DateTime?
+  notes           String?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  timetableEntryId String?
+  timetableEntry   TimetableEntry? @relation(fields: [timetableEntryId], references: [id])
+
+  // Denormalized for performance
+  classId    String
+  class      Class    @relation(fields: [classId], references: [id])
+  teacherId  String
+  teacher    Teacher  @relation(fields: [teacherId], references: [id])
+  timeSlotId String
+  timeSlot   TimeSlot @relation(fields: [timeSlotId], references: [id])
+
+  attendanceRecords AttendanceRecord[]
+
+  @@unique([classId, date, timeSlotId])
+}
+
+model AttendanceRecord {
+  id            String           @id @default(cuid())
+  status        AttendanceStatus @default(PRESENT)
+  arrivalTime   DateTime?
+  departureTime DateTime?
+  notes         String?
+  markedAt      DateTime         @default(now())
+
+  // Relations
+  attendanceSessionId String
+  attendanceSession   AttendanceSession @relation(fields: [attendanceSessionId], references: [id], onDelete: Cascade)
+  studentId           String
+  student             Student           @relation(fields: [studentId], references: [id])
+  markedById          String
+  markedBy            Teacher           @relation(fields: [markedById], references: [id])
+
+  @@unique([attendanceSessionId, studentId])
+}
+
+// ============= ENUMS =============
+
+enum Gender {
+  M // Male
+  F // Female
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+  LEFT_EARLY
+}
+
+enum AttendanceSessionStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}

@@ -14,7 +14,7 @@ export default async function StudentsPage() {
     : await getTeacherStudentsFromDb(session.user.teacher_id!);
 
   return (
-    <div className="max-w-3xl md:mx-auto px-8 my-12">
+    <div className="max-w-4xl md:mx-auto px-8 my-12">
       <h1 className="text-3xl font-bold mb-6">
         {isAdmin ? "Student Management" : "My Students"}
       </h1>

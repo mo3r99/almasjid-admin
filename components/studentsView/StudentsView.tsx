@@ -4,16 +4,10 @@ import { useState, useEffect, useCallback } from "react";
 
 import { Input } from "@/components/ui/input";
 
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@/components/ui/select";
 import { Student } from "@/types/students";
 import StudentsDataView from "./StudentsDataView";
 import { StudentDataViewColumn } from "@/types/studentView";
+import StudentsFilter from "./StudentsFilter";
 
 export default function StudentsView({
   students,
@@ -25,25 +19,67 @@ export default function StudentsView({
   const [searchParam, setSearchParam] = useState("");
   const [studentList, setStudentList] = useState(students as Student[] | null);
 
-const searchStudents = useCallback((query: string) => {
-    if (!query.trim()) {
-        setStudentList(students);
-        return;
-    }
-    
-    const lowercaseQuery = query.toLowerCase();
-    const filteredStudents = students.filter((student) => 
-        student.first_name?.toLowerCase().includes(lowercaseQuery) ||
-        student.surname?.toLowerCase().includes(lowercaseQuery) ||
-        student.class_name?.toLowerCase().includes(lowercaseQuery)
-    );
-    
-    setStudentList(filteredStudents.length > 0 ? filteredStudents : []);
-}, [students]);
+  const [classFilter, setClassFilter] = useState(
+    undefined as string | undefined
+  );
+  const [genderFilter, setGenderFilter] = useState(
+    undefined as string | undefined
+  );
 
-useEffect(() => {
-    searchStudents(searchParam);
-}, [searchParam, searchStudents]);
+  const searchStudents = useCallback(
+    (
+      query: string,
+      classFilter: string | undefined,
+      genderFilter: string | undefined
+    ) => {
+      let searchedStudents = studentList;
+
+      if (!query.trim()) {
+        setStudentList(students);
+      } else {
+        const lowercaseQuery = query.toLowerCase();
+        searchedStudents = students.filter(
+          (student) =>
+            student.first_name?.toLowerCase().includes(lowercaseQuery) ||
+            student.surname?.toLowerCase().includes(lowercaseQuery) ||
+            student.class_name?.toLowerCase().includes(lowercaseQuery)
+        );
+      }
+
+      const filteredStudents =
+        searchedStudents &&
+        searchedStudents
+          .filter((student) => {
+            if (classFilter == null || classFilter == "all") {
+              return true;
+            } else {
+              return (
+                student.class_name.toLowerCase() == classFilter?.toLowerCase()
+              );
+            }
+          })
+          .filter((student) => {
+            if (genderFilter == null || genderFilter == "all") {
+              return true;
+            } else {
+              return (
+                student.gender.toLowerCase() == genderFilter?.toLowerCase()
+              );
+            }
+          });
+
+      setStudentList(
+        filteredStudents?.length && filteredStudents.length > 0
+          ? filteredStudents
+          : []
+      );
+    },
+    [students]
+  );
+
+  useEffect(() => {
+    searchStudents(searchParam, classFilter, genderFilter);
+  }, [searchParam, searchStudents, classFilter, genderFilter]);
 
   const columnsToShow: StudentDataViewColumn[] = isAdmin
     ? [
@@ -111,23 +147,27 @@ useEffect(() => {
           onChange={(e) => setSearchParam(e.target.value)}
           className="flex-1"
         />
-        <Select>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Filter by class" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Classes</SelectItem>
-            {[
-              ...new Set(
-                students.map((student) => student.class_name).filter(Boolean)
-              ),
-            ].map((className) => (
-              <SelectItem key={className} value={className}>
-                {className}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <StudentsFilter
+          placeholder="Filter by Class"
+          className="w-[180px]"
+          value={classFilter}
+          updateFunction={setClassFilter}
+          allValue="All Classes"
+          itemsList={[
+            ...new Set(
+              students.map((student) => student.class_name).filter(Boolean)
+            ),
+          ]}
+        />
+
+        <StudentsFilter
+          placeholder="Filter by Gender"
+          className="w-[180px]"
+          value={genderFilter}
+          updateFunction={setGenderFilter}
+          allValue="Male and Female"
+          itemsList={["Male", "Female"]}
+        />
       </div>
       <StudentsDataView columns={columnsToShow} students={studentList} />
     </>
